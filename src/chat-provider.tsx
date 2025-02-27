@@ -2,38 +2,12 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { ChatClient } from "./index";
 import {
   ConnectionStatus,
-  MessageAttachmentInput,
   MessageResponse,
+  RoomDetails,
   ShortRoomResponse,
-  UserResponse,
+  UserMessageInput,
 } from "./types";
-import { connectTwoArrays, createPeerConnection } from "./utils";
-
-type UserMessageInput = {
-  replyOnMessageId: string | undefined;
-  editOnMessageId: string | undefined;
-  content?: string;
-  attachments: MessageAttachmentInput[];
-};
-
-type CallDetails = {
-  hasCall: boolean;
-  localStream: MediaStream | undefined;
-  peerConnection: RTCPeerConnection | undefined;
-  streams: MediaStream[];
-};
-type RoomDetails = {
-  lastMessageId: string;
-  hasMore: boolean;
-  messages: MessageResponse[];
-  typings: UserResponse[];
-  messageInput: {
-    replyOn: MessageResponse | undefined;
-    editOn: MessageResponse | undefined;
-    content?: string;
-    attachments: MessageAttachmentInput[];
-  };
-};
+import { connectTwoArrays } from "./utils";
 
 const INIT_ROOM_DETAILS: RoomDetails = {
   lastMessageId: "",
@@ -81,33 +55,22 @@ export const ChatProvider: React.FC<{
   useEffect(() => {
     const client = new ChatClient(socketUrl, serverUrl, authToken);
 
-    client.getConnectionStatus().subscribe(setStatus);
+    setChatClient(client);
 
+    client.getConnectionStatus().subscribe(setStatus);
     client.onConnect(() => setStatus("connected"));
     client.onDisconnect(() => setStatus("disconnected"));
-    client.onError((error) => console.error("Chat Error:", error));
+    client.onError(console.error);
 
     client.onMessageReceived((data) => {
       console.log("inside message received\n", data);
 
-      setRoomsMap((prev) => ({
-        ...prev,
-        [data.roomId]: prev[data.roomId]
-          ? {
-              ...prev[data.roomId],
-              messages: connectTwoArrays(
-                prev[data.roomId]?.messages || [],
-                [data],
-                "id"
-              ),
-            }
-          : {
-              ...INIT_ROOM_DETAILS,
-              messages: [data],
-            },
-      }));
-
       const { roomId } = data;
+
+      updateRoomsMap(roomId, (room) => ({
+        ...room,
+        messages: connectTwoArrays(room.messages, [data], "id"),
+      }));
 
       setRooms((prevRooms) => {
         const roomToUpdate = prevRooms.find((room) => room.id === roomId);
@@ -123,93 +86,61 @@ export const ChatProvider: React.FC<{
     client.onMessageReaded((data) => {
       console.log("inside message readed\n", data);
 
-      setRoomsMap((prev) => ({
-        ...prev,
-        [data.roomId]: prev[data.roomId]
-          ? {
-              ...prev[data.roomId],
-              messages: (prev[data.roomId]?.messages || []).map((m) => {
-                if (m.id === data.messageId) {
-                  m.readAt = data.readAt;
-                }
-                return m;
-              }),
-            }
-          : INIT_ROOM_DETAILS,
+      const { roomId } = data;
+
+      updateRoomsMap(roomId, (room) => ({
+        ...room,
+        messages: room.messages.map((m) => {
+          if (m.id === data.messageId) {
+            m.readAt = data.readAt;
+          }
+          return m;
+        }),
       }));
     });
 
     client.onMessageDeleted((data) => {
       console.log("inside message deleted\n", data);
+      const { roomId, messageId } = data;
 
-      setRoomsMap((prev) => ({
-        ...prev,
-        [data.roomId]: prev[data.roomId]
-          ? {
-              ...prev[data.roomId],
-              messages: prev[data.roomId].messages.filter(
-                (m) => m.id !== data.messageId
-              ),
-            }
-          : INIT_ROOM_DETAILS,
+      updateRoomsMap(roomId, (room) => ({
+        ...room,
+        messages: room.messages.filter((m) => m.id !== messageId),
       }));
     });
 
     client.onMessageUpdated((data) => {
       console.log("inside message updated\n", data);
 
-      setRoomsMap((prev) => ({
-        ...prev,
-        [data.roomId]: prev[data.roomId]
-          ? {
-              ...prev[data.roomId],
-              messages: (prev[data.roomId]?.messages || []).map((m) => {
-                if (m.id === data.id) {
-                  m = data;
-                }
-                return m;
-              }),
-            }
-          : INIT_ROOM_DETAILS,
+      const { roomId, id } = data;
+
+      updateRoomsMap(roomId, (room) => ({
+        ...room,
+        messages: room.messages.map((m) => (m.id === id ? data : m)),
       }));
     });
 
     client.onTypingStarted((data) => {
       console.log("inside typing started\n", data);
+      const { roomId, user } = data;
 
+      // TODO
       // No need to push the same user as typing user
       if (data.user.id !== client.getUserData().id)
-        setRoomsMap((prev) => ({
-          ...prev,
-          [data.roomId]: prev[data.roomId]
-            ? {
-                ...prev[data.roomId],
-                typings: connectTwoArrays(
-                  prev[data.roomId]?.typings || [],
-                  [data.user],
-                  "id"
-                ),
-              }
-            : {
-                ...INIT_ROOM_DETAILS,
-                typings: [data.user],
-              },
+        updateRoomsMap(roomId, (room) => ({
+          ...room,
+          typings: connectTwoArrays(room.typings, [user], "id"),
         }));
     });
 
     client.onTypingStopped((data) => {
       console.log("inside typing stopped\n", data);
 
-      setRoomsMap((prev) => ({
-        ...prev,
-        [data.roomId]: prev[data.roomId]
-          ? {
-              ...prev[data.roomId],
-              typings: (prev[data.roomId]?.typings || []).filter(
-                (u) => u.id !== data.user.id
-              ),
-            }
-          : INIT_ROOM_DETAILS,
+      const { roomId, user } = data;
+
+      updateRoomsMap(roomId, (room) => ({
+        ...room,
+        typings: room.typings.filter((u) => u.id !== user.id),
       }));
     });
 
@@ -225,17 +156,33 @@ export const ChatProvider: React.FC<{
       console.log("inside candidate received\n", data);
     });
 
-    setChatClient(client);
-
     return () => {
       client.disconnect();
     };
   }, [socketUrl, authToken]);
 
-  const getRoomDetails = (roomId: string) => {
-    const details = roomsMap[roomId] || INIT_ROOM_DETAILS;
+  useEffect(() => {
+    if (chatClient)
+      chatClient
+        .fetchRooms()
+        .then((response) => {
+          setRooms(response.data);
+        })
+        .catch((error) => {
+          console.log(error);
+        });
+  }, [chatClient]);
 
-    return details;
+  const getRoomDetails = (roomId) => roomsMap[roomId] || INIT_ROOM_DETAILS;
+
+  const updateRoomsMap = (
+    roomId: string,
+    updateFn: (room: RoomDetails) => RoomDetails
+  ) => {
+    setRoomsMap((prev) => ({
+      ...prev,
+      [roomId]: updateFn(prev[roomId] || INIT_ROOM_DETAILS),
+    }));
   };
 
   const pushOldMessages = (
@@ -244,130 +191,63 @@ export const ChatProvider: React.FC<{
     hasMore: boolean
   ) => {
     oldMessages = oldMessages.reverse();
-
-    setRoomsMap((prev) => ({
-      ...prev,
-      [roomId]: prev[roomId]
-        ? {
-            ...prev[roomId],
-            lastMessageId: oldMessages[0]?.id || "",
-            hasMore,
-            messages: connectTwoArrays(
-              oldMessages,
-              prev[roomId]?.messages || [],
-              "id"
-            ),
-          }
-        : {
-            ...INIT_ROOM_DETAILS,
-            lastMessageId: oldMessages[0]?.id || "",
-            hasMore,
-            messages: connectTwoArrays(
-              oldMessages,
-              prev[roomId]?.messages || [],
-              "id"
-            ),
-          },
+    updateRoomsMap(roomId, (room) => ({
+      ...room,
+      lastMessageId: oldMessages[0]?.id || "",
+      hasMore,
+      messages: connectTwoArrays(oldMessages.reverse(), room.messages, "id"),
     }));
   };
 
   const sendMessage = (roomId: string) => {
-    if (chatClient) {
-      const messageInput = getRoomDetails(roomId).messageInput;
+    if (!chatClient) return;
+    const { messageInput } = getRoomDetails(roomId);
 
-      if (messageInput.content || messageInput.attachments.length !== 0) {
-        if (messageInput.editOn) {
-          chatClient.updateMessage({
-            roomId,
-            messageId: messageInput.editOn.id,
-            message: {
-              replyOn: messageInput.replyOn?.id,
-              content: messageInput.content,
-              attachments: messageInput.attachments,
-            },
-          });
-        } else {
-          chatClient.sendMessage({
-            roomId,
-            message: {
-              replyOn: messageInput.replyOn?.id,
-              content: messageInput.content,
-              attachments: messageInput.attachments,
-            },
-          });
-        }
+    if (!messageInput.content && messageInput.attachments.length === 0)
+      return console.log("Empty Message!!");
 
-        setMessageInput(roomId, {
-          attachments: [],
-          editOnMessageId: undefined,
-          replyOnMessageId: undefined,
-          content: "",
-        });
-      } else {
-        console.log("Empty Message!!");
-      }
-    }
+    const message = {
+      replyOn: messageInput.replyOn?.id,
+      content: messageInput.content,
+      attachments: messageInput.attachments,
+    };
+
+    messageInput.editOn
+      ? chatClient.updateMessage({
+          roomId,
+          messageId: messageInput.editOn.id,
+          message,
+        })
+      : chatClient.sendMessage({ roomId, message });
+
+    setMessageInput(roomId, {
+      replyOnMessageId: undefined,
+      editOnMessageId: undefined,
+      content: "",
+      attachments: [],
+    });
   };
 
-  const setMessageInput = (roomId: string, messageInput: UserMessageInput) => {
-    setRoomsMap((prev) => ({
-      ...prev,
-      [roomId]: prev[roomId]
-        ? {
-            ...prev[roomId],
-
-            messageInput: {
-              attachments: messageInput.attachments,
-              content: messageInput.content,
-              replyOn: messageInput.replyOnMessageId
-                ? (prev[roomId].messages || []).find(
-                    (m) => m.id === messageInput.replyOnMessageId
-                  )
-                : undefined,
-              editOn: messageInput.editOnMessageId
-                ? (prev[roomId].messages || []).find(
-                    (m) => m.id === messageInput.editOnMessageId
-                  )
-                : undefined,
-            },
-          }
-        : {
-            ...INIT_ROOM_DETAILS,
-            messageInput: {
-              attachments: messageInput.attachments,
-              content: messageInput.content,
-              replyOn: messageInput.replyOnMessageId
-                ? (prev[roomId].messages || []).find(
-                    (m) => m.id === messageInput.replyOnMessageId
-                  )
-                : undefined,
-              editOn: messageInput.editOnMessageId
-                ? (prev[roomId].messages || []).find(
-                    (m) => m.id === messageInput.editOnMessageId
-                  )
-                : undefined,
-            },
-          },
+  const setMessageInput = (roomId: string, input: UserMessageInput) => {
+    updateRoomsMap(roomId, (room) => ({
+      ...room,
+      messageInput: {
+        ...room.messageInput,
+        content: input.content,
+        attachments: input.attachments,
+        replyOn: input.replyOnMessageId
+          ? room.messages.find((m) => m.id === input.replyOnMessageId)
+          : undefined,
+        editOn: input.editOnMessageId
+          ? room.messages.find((m) => m.id === input.editOnMessageId)
+          : undefined,
+      },
     }));
 
-    if (messageInput.content || messageInput.attachments.length !== 0) {
-      chatClient.startTyping({ roomId });
-    } else {
-      chatClient.stopTyping({ roomId });
-    }
+    chatClient?.[
+      input.content || input.attachments.length ? "startTyping" : "stopTyping"
+    ]({ roomId });
   };
-
-  useEffect(() => {
-    chatClient
-      ?.fetchRooms()
-      .then((response) => {
-        console.log("fetched rooms\n", response.data);
-        setRooms(response.data);
-      })
-      .catch((error) => {
-        console.log(error);
-      });
-  }, [chatClient]);
 
   return (
     <ChatContext.Provider

@@ -1,3 +1,29 @@
+export type UserMessageInput = {
+  replyOnMessageId: string | undefined;
+  editOnMessageId: string | undefined;
+  content?: string;
+  attachments: MessageAttachmentInput[];
+};
+
+export type CallDetails = {
+  hasCall: boolean;
+  localStream: MediaStream | undefined;
+  peerConnection: RTCPeerConnection | undefined;
+  streams: MediaStream[];
+};
+export type RoomDetails = {
+  lastMessageId: string;
+  hasMore: boolean;
+  messages: MessageResponse[];
+  typings: UserResponse[];
+  messageInput: {
+    replyOn: MessageResponse | undefined;
+    editOn: MessageResponse | undefined;
+    content?: string;
+    attachments: MessageAttachmentInput[];
+  };
+};
+
 export type Events =
   | "connect"
   | "disconnect"
