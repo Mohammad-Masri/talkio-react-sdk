@@ -23,9 +23,12 @@ import {
   SendCallOfferInput,
   AnswerCallOfferInput,
   ShareCandidateInput,
+  CallStatus,
+  DeclineCallOfferResponse,
+  DeclineCallOfferInput,
 } from "./types";
 
-export class ChatClient {
+export class SocketClient {
   private socket: typeof Socket;
   private http: AxiosInstance;
 
@@ -97,6 +100,10 @@ export class ChatClient {
 
   private on(event: Events, callback: (...args: unknown[]) => void) {
     this.socket?.on(event, callback);
+  }
+
+  public off(event: Events) {
+    this.socket?.off(event);
   }
 
   private emit<T>(action: Actions, data: T) {
@@ -175,6 +182,10 @@ export class ChatClient {
     this.on("call-offer-answered", callback);
   }
 
+  onCallOfferDeclined(callback: (data: DeclineCallOfferResponse) => void) {
+    this.on("call-offer-declined", callback);
+  }
+
   onCandidateReceived(callback: (data: CandidateResponse) => void) {
     this.on("candidate-received", callback);
   }
@@ -246,6 +257,12 @@ export class ChatClient {
     const ok = this.checkSocket();
     if (ok) {
       this.emit("answer-call-offer", data);
+    }
+  }
+  declineCallOffer(data: DeclineCallOfferInput) {
+    const ok = this.checkSocket();
+    if (ok) {
+      this.emit("decline-call-offer", data);
     }
   }
 

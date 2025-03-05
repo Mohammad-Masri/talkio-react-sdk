@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { ChatClient } from "./index";
+import { SocketClient } from "./socket-client";
 import {
   ConnectionStatus,
   MessageResponse,
@@ -8,6 +8,7 @@ import {
   UserMessageInput,
 } from "./types";
 import { connectTwoArrays } from "./utils";
+import { useTalkio } from "./talkio-provider";
 
 const INIT_ROOM_DETAILS: RoomDetails = {
   lastMessageId: "",
@@ -25,9 +26,6 @@ const INIT_ROOM_DETAILS: RoomDetails = {
 type RoomsMap = Record<string, RoomDetails>;
 
 type ChatContextProps = {
-  chatClient: ChatClient;
-  status: ConnectionStatus;
-  rooms: ShortRoomResponse[];
   getRoomDetails: (roomId: string) => RoomDetails;
   pushOldMessages: (
     roomId: string,
@@ -42,136 +40,100 @@ type ChatContextProps = {
 const ChatContext = createContext<ChatContextProps | undefined>(undefined);
 
 export const ChatProvider: React.FC<{
-  socketUrl: string;
-  serverUrl: string;
-  authToken: string;
   children: React.ReactNode;
-}> = ({ socketUrl, serverUrl, authToken, children }) => {
-  const [chatClient, setChatClient] = useState<ChatClient | null>(null);
-  const [status, setStatus] = useState<ConnectionStatus>("connecting");
-  const [rooms, setRooms] = useState<ShortRoomResponse[]>([]);
+}> = ({ children }) => {
+  const { socketClient, setRooms } = useTalkio();
+
   const [roomsMap, setRoomsMap] = useState<RoomsMap>({});
 
   useEffect(() => {
-    const client = new ChatClient(socketUrl, serverUrl, authToken);
+    if (socketClient) {
+      socketClient.onMessageReceived((data) => {
+        console.log("inside message received\n", data);
 
-    setChatClient(client);
+        const { roomId } = data;
 
-    client.getConnectionStatus().subscribe(setStatus);
-    client.onConnect(() => setStatus("connected"));
-    client.onDisconnect(() => setStatus("disconnected"));
-    client.onError(console.error);
-
-    client.onMessageReceived((data) => {
-      console.log("inside message received\n", data);
-
-      const { roomId } = data;
-
-      updateRoomsMap(roomId, (room) => ({
-        ...room,
-        messages: connectTwoArrays(room.messages, [data], "id"),
-      }));
-
-      setRooms((prevRooms) => {
-        const roomToUpdate = prevRooms.find((room) => room.id === roomId);
-
-        if (!roomToUpdate) return prevRooms;
-
-        const updatedRoom = { ...roomToUpdate, lastMessage: data };
-
-        return [updatedRoom, ...prevRooms.filter((room) => room.id !== roomId)];
-      });
-    });
-
-    client.onMessageReaded((data) => {
-      console.log("inside message readed\n", data);
-
-      const { roomId } = data;
-
-      updateRoomsMap(roomId, (room) => ({
-        ...room,
-        messages: room.messages.map((m) => {
-          if (m.id === data.messageId) {
-            m.readAt = data.readAt;
-          }
-          return m;
-        }),
-      }));
-    });
-
-    client.onMessageDeleted((data) => {
-      console.log("inside message deleted\n", data);
-      const { roomId, messageId } = data;
-
-      updateRoomsMap(roomId, (room) => ({
-        ...room,
-        messages: room.messages.filter((m) => m.id !== messageId),
-      }));
-    });
-
-    client.onMessageUpdated((data) => {
-      console.log("inside message updated\n", data);
-
-      const { roomId, id } = data;
-
-      updateRoomsMap(roomId, (room) => ({
-        ...room,
-        messages: room.messages.map((m) => (m.id === id ? data : m)),
-      }));
-    });
-
-    client.onTypingStarted((data) => {
-      console.log("inside typing started\n", data);
-      const { roomId, user } = data;
-
-      // TODO
-      // No need to push the same user as typing user
-      if (data.user.id !== client.getUserData().id)
         updateRoomsMap(roomId, (room) => ({
           ...room,
-          typings: connectTwoArrays(room.typings, [user], "id"),
+          messages: connectTwoArrays(room.messages, [data], "id"),
         }));
-    });
 
-    client.onTypingStopped((data) => {
-      console.log("inside typing stopped\n", data);
+        setRooms((prevRooms) => {
+          const roomToUpdate = prevRooms.find((room) => room.id === roomId);
 
-      const { roomId, user } = data;
+          if (!roomToUpdate) return prevRooms;
 
-      updateRoomsMap(roomId, (room) => ({
-        ...room,
-        typings: room.typings.filter((u) => u.id !== user.id),
-      }));
-    });
+          const updatedRoom = { ...roomToUpdate, lastMessage: data };
 
-    client.onCallOfferReceived(async (data) => {
-      console.log("inside call offer received\n", data);
-    });
-
-    client.onCallOfferAnswered((data) => {
-      console.log("inside call offer answered\n", data);
-    });
-
-    client.onCandidateReceived(async (data) => {
-      console.log("inside candidate received\n", data);
-    });
-
-    return () => {
-      client.disconnect();
-    };
-  }, [socketUrl, authToken]);
-
-  useEffect(() => {
-    if (chatClient)
-      chatClient
-        .fetchRooms()
-        .then((response) => {
-          setRooms(response.data);
-        })
-        .catch((error) => {
-          console.log(error);
+          return [
+            updatedRoom,
+            ...prevRooms.filter((room) => room.id !== roomId),
+          ];
         });
-  }, [chatClient]);
+      });
+
+      socketClient.onMessageReaded((data) => {
+        console.log("inside message readed\n", data);
+
+        const { roomId } = data;
+
+        updateRoomsMap(roomId, (room) => ({
+          ...room,
+          messages: room.messages.map((m) => {
+            if (m.id === data.messageId) {
+              m.readAt = data.readAt;
+            }
+            return m;
+          }),
+        }));
+      });
+
+      socketClient.onMessageDeleted((data) => {
+        console.log("inside message deleted\n", data);
+        const { roomId, messageId } = data;
+
+        updateRoomsMap(roomId, (room) => ({
+          ...room,
+          messages: room.messages.filter((m) => m.id !== messageId),
+        }));
+      });
+
+      socketClient.onMessageUpdated((data) => {
+        console.log("inside message updated\n", data);
+
+        const { roomId, id } = data;
+
+        updateRoomsMap(roomId, (room) => ({
+          ...room,
+          messages: room.messages.map((m) => (m.id === id ? data : m)),
+        }));
+      });
+
+      socketClient.onTypingStarted((data) => {
+        console.log("inside typing started\n", data);
+        const { roomId, user } = data;
+
+        // TODO
+        // No need to push the same user as typing user
+        if (data.user.id !== socketClient.getUserData().id)
+          updateRoomsMap(roomId, (room) => ({
+            ...room,
+            typings: connectTwoArrays(room.typings, [user], "id"),
+          }));
+      });
+
+      socketClient.onTypingStopped((data) => {
+        console.log("inside typing stopped\n", data);
+
+        const { roomId, user } = data;
+
+        updateRoomsMap(roomId, (room) => ({
+          ...room,
+          typings: room.typings.filter((u) => u.id !== user.id),
+        }));
+      });
+    }
+  }, [socketClient]);
 
   const getRoomDetails = (roomId) => roomsMap[roomId] || INIT_ROOM_DETAILS;
 
@@ -190,7 +152,6 @@ export const ChatProvider: React.FC<{
     oldMessages: MessageResponse[],
     hasMore: boolean
   ) => {
-    oldMessages = oldMessages.reverse();
     updateRoomsMap(roomId, (room) => ({
       ...room,
       lastMessageId: oldMessages[0]?.id || "",
@@ -200,7 +161,7 @@ export const ChatProvider: React.FC<{
   };
 
   const sendMessage = (roomId: string) => {
-    if (!chatClient) return;
+    if (!socketClient) return;
     const { messageInput } = getRoomDetails(roomId);
 
     if (!messageInput.content && messageInput.attachments.length === 0)
@@ -213,12 +174,12 @@ export const ChatProvider: React.FC<{
     };
 
     messageInput.editOn
-      ? chatClient.updateMessage({
+      ? socketClient.updateMessage({
           roomId,
           messageId: messageInput.editOn.id,
           message,
         })
-      : chatClient.sendMessage({ roomId, message });
+      : socketClient.sendMessage({ roomId, message });
 
     setMessageInput(roomId, {
       replyOnMessageId: undefined,
@@ -244,7 +205,7 @@ export const ChatProvider: React.FC<{
       },
     }));
 
-    chatClient?.[
+    socketClient?.[
       input.content || input.attachments.length ? "startTyping" : "stopTyping"
     ]({ roomId });
   };
@@ -252,9 +213,6 @@ export const ChatProvider: React.FC<{
   return (
     <ChatContext.Provider
       value={{
-        chatClient,
-        status,
-        rooms,
         getRoomDetails,
         pushOldMessages,
         sendMessage,

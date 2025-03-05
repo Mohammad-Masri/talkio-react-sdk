@@ -39,6 +39,7 @@ export type Events =
   | "typing-stopped"
   | "call-offer-received"
   | "call-offer-answered"
+  | "call-offer-declined"
   | "candidate-received";
 
 export type Actions =
@@ -52,6 +53,7 @@ export type Actions =
   | "stop-typing"
   | "send-call-offer"
   | "answer-call-offer"
+  | "decline-call-offer"
   | "share-candidate";
 
 export enum ParticipantRoles {
@@ -60,6 +62,8 @@ export enum ParticipantRoles {
 }
 
 export type ConnectionStatus = "connecting" | "connected" | "disconnected";
+
+export type CallStatus = "idle" | "ringing" | "in-call";
 
 export class MessageAttachmentInput {
   URL: string;
@@ -200,10 +204,19 @@ export interface AnswerCallOfferInput {
   answer: RTCSessionDescriptionInit;
 }
 
+export interface DeclineCallOfferInput {
+  roomId: string;
+}
+
 export interface AnswerCallOfferResponse {
   roomId: string;
   from: string;
   answer: RTCSessionDescriptionInit;
+}
+
+export interface DeclineCallOfferResponse {
+  roomId: string;
+  from: string;
 }
 
 export interface ShareCandidateInput {
