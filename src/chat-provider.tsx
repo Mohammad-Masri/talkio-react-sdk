@@ -20,14 +20,16 @@ type RoomsMap = Record<string, RoomDetails>;
 
 type ChatContextProps = {
   getRoomDetails: (roomId: string) => RoomDetails;
-  pushOldMessages: (
-    roomId: string,
-    messages: MessageResponse[],
-    hasMore: boolean
-  ) => void;
+  // pushOldMessages: (
+  //   roomId: string,
+  //   messages: MessageResponse[],
+  //   hasMore: boolean
+  // ) => void;
 
   sendMessage: (roomId: string) => void;
   setMessageInput: (roomId: string, messageInput: UserMessageInput) => void;
+
+  loadMoreMessages: (roomId: string, limit?: number) => void;
 };
 
 const ChatContext = createContext<ChatContextProps | undefined>(undefined);
@@ -203,11 +205,23 @@ export const ChatProvider: React.FC<{
     ]({ roomId });
   };
 
+  const loadMoreMessages = (roomId: string, limit: number = 100) => {
+    const { lastMessageId } = getRoomDetails(roomId);
+
+    if (socketClient)
+      socketClient
+        .fetchMessages(roomId, lastMessageId, limit)
+        .then((response) => {
+          const { data, hasMore } = response.data;
+          pushOldMessages(roomId, data, hasMore);
+        });
+  };
+
   return (
     <ChatContext.Provider
       value={{
         getRoomDetails,
-        pushOldMessages,
+        loadMoreMessages,
         sendMessage,
         setMessageInput,
       }}
