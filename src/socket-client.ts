@@ -26,6 +26,7 @@ import {
   CallStatus,
   DeclineCallOfferResponse,
   DeclineCallOfferInput,
+  CallInitializedResponse,
 } from "./types";
 
 export class SocketClient {
@@ -174,6 +175,9 @@ export class SocketClient {
     this.on("typing-stopped", callback);
   }
 
+  onCallOfferInitialized(callback: (data: CallInitializedResponse) => void) {
+    this.on("call-offer-initialized", callback);
+  }
   onCallOfferReceived(callback: (data: CallOfferResponse) => void) {
     this.on("call-offer-received", callback);
   }

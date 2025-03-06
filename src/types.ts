@@ -37,6 +37,7 @@ export type Events =
   | "message-deleted"
   | "typing-started"
   | "typing-stopped"
+  | "call-offer-initialized"
   | "call-offer-received"
   | "call-offer-answered"
   | "call-offer-declined"
@@ -191,11 +192,19 @@ export interface SendCallOfferInput {
   offer: RTCSessionDescriptionInit;
 }
 
-export interface CallOfferResponse {
+export interface CallInitializedResponse {
   roomId: string;
+
+  call: CallResponse;
+}
+
+export interface CallOfferResponse {
+  // roomId: string;
   from: string;
 
   offer: RTCSessionDescriptionInit;
+
+  call: CallResponse;
 }
 
 export interface AnswerCallOfferInput {
@@ -212,6 +221,7 @@ export interface AnswerCallOfferResponse {
   roomId: string;
   from: string;
   answer: RTCSessionDescriptionInit;
+  // call: CallResponse;
 }
 
 export interface DeclineCallOfferResponse {
@@ -229,4 +239,12 @@ export interface CandidateResponse {
   roomId: string;
   from: string;
   candidate: RTCIceCandidate;
+}
+
+export interface CallResponse {
+  id: string;
+  room: ShortRoomResponse;
+  caller: UserResponse;
+  isYouCaller: boolean;
+  createdAt: string;
 }

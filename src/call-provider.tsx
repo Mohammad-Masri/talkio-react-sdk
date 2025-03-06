@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { CallStatus, ShortRoomResponse } from "./types";
+import { CallStatus, CallResponse, ShortRoomResponse } from "./types";
 import { useTalkio } from "./talkio-provider";
 
 type CallTypes = "voice-only" | "video";
@@ -12,7 +12,7 @@ type CallContextProps = {
   remoteStreams: MediaStream[];
   localStream: MediaStream | undefined;
 
-  roomCallingMe: ShortRoomResponse | undefined;
+  call: CallResponse | undefined;
 };
 
 const CallContext = createContext<CallContextProps | undefined>(undefined);
@@ -31,22 +31,24 @@ export const CallProvider: React.FC<{
   );
   const [remoteStreams, setRemoteStreams] = useState<MediaStream[]>([]);
 
-  const [roomCallingMe, setRoomCallingMe] = useState<
-    ShortRoomResponse | undefined
-  >(undefined);
+  const [call, setCall] = useState<CallResponse | undefined>(undefined);
 
   useEffect(() => {
     if (socketClient) {
+      socketClient.onCallOfferInitialized(async (data) => {
+        console.log("inside call offer Initialized\n", data);
+
+        setCallStatus("ringing");
+        setCall(data.call);
+      });
       socketClient.onCallOfferReceived(async (data) => {
         console.log("inside call offer received\n", data);
-        const room = rooms.find((r) => r.id === data.roomId);
-        if (!room) return console.log("room is not found!");
 
         setCallStatus("ringing");
 
-        setRoomCallingMe(room);
+        setCall(data.call);
 
-        const pc = createPeerConnection(data.roomId);
+        const pc = createPeerConnection(data.call.room.id);
 
         await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
 
@@ -158,7 +160,7 @@ export const CallProvider: React.FC<{
   };
 
   const acceptCall = async (type: CallTypes = "voice-only") => {
-    if (!roomCallingMe) return console.log("there is no call to accept!");
+    if (!call) return console.log("there is no call to accept!");
     const stream = await navigator.mediaDevices.getUserMedia(
       type === "voice-only"
         ? {
@@ -187,20 +189,20 @@ export const CallProvider: React.FC<{
     await peerConnection.setLocalDescription(answer);
 
     socketClient.answerCallOffer({
-      roomId: roomCallingMe.id,
+      roomId: call.room.id,
       answer,
     });
   };
 
   const declineCall = () => {
-    if (!roomCallingMe) return console.log("there is no call to decline!");
+    if (!call) return console.log("there is no call to decline!");
 
     socketClient.declineCallOffer({
-      roomId: roomCallingMe.id,
+      roomId: call.room.id,
     });
 
     setCallStatus("idle");
-    setRoomCallingMe(undefined);
+    setCall(undefined);
     setPeerConnection(undefined);
 
     if (localStream) {
@@ -218,7 +220,7 @@ export const CallProvider: React.FC<{
         declineCall,
         remoteStreams,
         localStream,
-        roomCallingMe,
+        call,
       }}
     >
       {children}
