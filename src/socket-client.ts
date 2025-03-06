@@ -12,20 +12,19 @@ import {
   MessagesResponse,
   ReadDeleteMessageInput,
   ReadMessageResponse,
-  ShortRoomResponse,
   SendMessageInput,
   UpdateMessageInput,
   StartStopTypingResponse,
   StartStopTypingInput,
-  CallOfferResponse,
-  AnswerCallOfferResponse,
   CandidateResponse,
-  SendCallOfferInput,
-  AnswerCallOfferInput,
   ShareCandidateInput,
-  CallStatus,
-  DeclineCallOfferResponse,
-  DeclineCallOfferInput,
+  FullRoomResponse,
+  PrivateCallReceivedResponse,
+  PrivateCallAnsweredResponse,
+  PrivateCallDeclinedResponse,
+  StartPrivateCallInput,
+  AnswerPrivateCallInput,
+  DeclinePrivateCallInput,
 } from "./types";
 
 export class SocketClient {
@@ -174,16 +173,16 @@ export class SocketClient {
     this.on("typing-stopped", callback);
   }
 
-  onCallOfferReceived(callback: (data: CallOfferResponse) => void) {
-    this.on("call-offer-received", callback);
+  onPrivateCallReceived(callback: (data: PrivateCallReceivedResponse) => void) {
+    this.on("private-call-received", callback);
   }
 
-  onCallOfferAnswered(callback: (data: AnswerCallOfferResponse) => void) {
-    this.on("call-offer-answered", callback);
+  onPrivateCallAnswered(callback: (data: PrivateCallAnsweredResponse) => void) {
+    this.on("private-call-answered", callback);
   }
 
-  onCallOfferDeclined(callback: (data: DeclineCallOfferResponse) => void) {
-    this.on("call-offer-declined", callback);
+  onPrivateCallDeclined(callback: (data: PrivateCallDeclinedResponse) => void) {
+    this.on("private-call-declined", callback);
   }
 
   onCandidateReceived(callback: (data: CandidateResponse) => void) {
@@ -246,23 +245,23 @@ export class SocketClient {
     }
   }
 
-  sendCallOffer(data: SendCallOfferInput) {
+  startPrivateCall(data: StartPrivateCallInput) {
     const ok = this.checkSocket();
     if (ok) {
-      this.emit("send-call-offer", data);
+      this.emit("start-private-call", data);
     }
   }
 
-  answerCallOffer(data: AnswerCallOfferInput) {
+  answerCallOffer(data: AnswerPrivateCallInput) {
     const ok = this.checkSocket();
     if (ok) {
-      this.emit("answer-call-offer", data);
+      this.emit("answer-private-call", data);
     }
   }
-  declineCallOffer(data: DeclineCallOfferInput) {
+  declineCallOffer(data: DeclinePrivateCallInput) {
     const ok = this.checkSocket();
     if (ok) {
-      this.emit("decline-call-offer", data);
+      this.emit("decline-private-call", data);
     }
   }
 
@@ -285,7 +284,7 @@ export class SocketClient {
   }
 
   fetchRooms() {
-    return this.http.get<ShortRoomResponse[]>("/api/rooms");
+    return this.http.get<FullRoomResponse[]>("/api/rooms");
   }
 
   fetchMessages(roomId: string, lastMessageId: string, limit: number = 100) {

@@ -37,9 +37,12 @@ export type Events =
   | "message-deleted"
   | "typing-started"
   | "typing-stopped"
-  | "call-offer-received"
-  | "call-offer-answered"
-  | "call-offer-declined"
+  | "private-call-received"
+  | "private-call-answered"
+  | "private-call-declined"
+  // | "call-offer-received"
+  // | "call-offer-answered"
+  // | "call-offer-declined"
   | "candidate-received";
 
 export type Actions =
@@ -51,9 +54,12 @@ export type Actions =
   | "delete-message"
   | "start-typing"
   | "stop-typing"
-  | "send-call-offer"
-  | "answer-call-offer"
-  | "decline-call-offer"
+  | "start-private-call"
+  | "answer-private-call"
+  | "decline-private-call"
+  // | "send-call-offer"
+  // | "answer-call-offer"
+  // | "decline-call-offer"
   | "share-candidate";
 
 export enum ParticipantRoles {
@@ -101,13 +107,6 @@ export class UpdateMessageInput {
 export enum RoomTypes {
   Private = "Private",
   Group = "Group",
-}
-export interface ShortRoomResponse {
-  id: string;
-  name: string;
-  type: RoomTypes;
-  participantsCount: number;
-  lastMessage: MessageResponse | undefined;
 }
 
 export interface ParticipantResponse {
@@ -185,36 +184,37 @@ export interface StartStopTypingResponse {
   user: UserResponse;
 }
 
-export interface SendCallOfferInput {
+export interface StartPrivateCallInput {
   roomId: string;
 
   offer: RTCSessionDescriptionInit;
 }
 
-export interface CallOfferResponse {
+export interface PrivateCallReceivedResponse {
   roomId: string;
   from: string;
-
   offer: RTCSessionDescriptionInit;
 }
 
-export interface AnswerCallOfferInput {
+export interface AnswerPrivateCallInput {
   roomId: string;
 
   answer: RTCSessionDescriptionInit;
 }
 
-export interface DeclineCallOfferInput {
+export interface PrivateCallAnsweredResponse {
   roomId: string;
-}
 
-export interface AnswerCallOfferResponse {
-  roomId: string;
   from: string;
+
   answer: RTCSessionDescriptionInit;
 }
 
-export interface DeclineCallOfferResponse {
+export interface DeclinePrivateCallInput {
+  roomId: string;
+}
+
+export interface PrivateCallDeclinedResponse {
   roomId: string;
   from: string;
 }

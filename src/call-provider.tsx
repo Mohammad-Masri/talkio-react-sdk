@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { CallStatus, ShortRoomResponse } from "./types";
+import { CallStatus, FullRoomResponse, RoomTypes } from "./types";
 import { useTalkio } from "./talkio-provider";
 
 type CallTypes = "voice-only" | "video";
@@ -12,7 +12,7 @@ type CallContextProps = {
   remoteStreams: MediaStream[];
   localStream: MediaStream | undefined;
 
-  roomCallingMe: ShortRoomResponse | undefined;
+  roomCallingMe: FullRoomResponse | undefined;
 };
 
 const CallContext = createContext<CallContextProps | undefined>(undefined);
@@ -26,19 +26,20 @@ export const CallProvider: React.FC<{
   const [peerConnection, setPeerConnection] = useState<
     RTCPeerConnection | undefined
   >(undefined);
+
   const [localStream, setLocalStream] = useState<MediaStream | undefined>(
     undefined
   );
   const [remoteStreams, setRemoteStreams] = useState<MediaStream[]>([]);
 
   const [roomCallingMe, setRoomCallingMe] = useState<
-    ShortRoomResponse | undefined
+    FullRoomResponse | undefined
   >(undefined);
 
   useEffect(() => {
     if (socketClient) {
-      socketClient.onCallOfferReceived(async (data) => {
-        console.log("inside call offer received\n", data);
+      socketClient.onPrivateCallReceived(async (data) => {
+        console.log("inside private call received\n", data);
         const room = rooms.find((r) => r.id === data.roomId);
         if (!room) return console.log("room is not found!");
 
@@ -53,8 +54,8 @@ export const CallProvider: React.FC<{
         setPeerConnection(pc);
       });
 
-      socketClient.onCallOfferAnswered(async (data) => {
-        console.log("inside call offer answered\n", data);
+      socketClient.onPrivateCallAnswered(async (data) => {
+        console.log("inside private call answered\n", data);
         setCallStatus("in-call");
 
         await peerConnection.setRemoteDescription(
@@ -62,8 +63,8 @@ export const CallProvider: React.FC<{
         );
       });
 
-      socketClient.onCallOfferDeclined(async (data) => {
-        console.log("inside call offer declined\n", data);
+      socketClient.onPrivateCallDeclined(async (data) => {
+        console.log("inside private call declined\n", data);
         setCallStatus("idle");
 
         setPeerConnection(undefined);
@@ -84,8 +85,8 @@ export const CallProvider: React.FC<{
       });
 
       return () => {
-        socketClient.off("call-offer-received");
-        socketClient.off("call-offer-answered");
+        socketClient.off("private-call-received");
+        socketClient.off("private-call-answered");
         socketClient.off("candidate-received");
       };
     }
@@ -125,6 +126,19 @@ export const CallProvider: React.FC<{
       return console.log("socketClient is not initialized yet!");
     if (callStatus !== "idle") return console.log("In a Call!");
 
+    const room = rooms.find((r) => r.id === roomId);
+    // TODO: to be implemented later
+    if (!room || room.type !== RoomTypes.Private)
+      return console.log(
+        `can't decline the ${RoomTypes.Private} call, the room is not found or the room is not a ${RoomTypes.Private} room, it's ${room?.type} `
+      );
+
+    let users = room.participants.map((p) => p.user);
+    users = users.filter((u) => u.id !== socketClient.getUserData().id);
+
+    if (users.length === 0)
+      return console.log(`these is no users in the room to start a call!`);
+
     const stream = await navigator.mediaDevices.getUserMedia(
       type === "voice-only"
         ? {
@@ -151,7 +165,7 @@ export const CallProvider: React.FC<{
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
 
-    socketClient.sendCallOffer({
+    socketClient.startPrivateCall({
       roomId,
       offer,
     });
@@ -159,6 +173,13 @@ export const CallProvider: React.FC<{
 
   const acceptCall = async (type: CallTypes = "voice-only") => {
     if (!roomCallingMe) return console.log("there is no call to accept!");
+
+    // TODO: to be fixed after implement group calls
+    if (roomCallingMe.type === RoomTypes.Group)
+      return console.log(
+        `The room type is not ${RoomTypes.Private}, can only start a call on the ${RoomTypes.Private} rooms`
+      );
+
     const stream = await navigator.mediaDevices.getUserMedia(
       type === "voice-only"
         ? {

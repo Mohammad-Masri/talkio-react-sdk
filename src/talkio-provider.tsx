@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { SocketClient } from "./socket-client";
-import { ConnectionStatus, ShortRoomResponse } from "./types";
+import { ConnectionStatus, FullRoomResponse } from "./types";
 
 type TalkioContextProps = {
   socketClient: SocketClient | null;
   status: ConnectionStatus;
-  rooms: ShortRoomResponse[];
-  setRooms: (value: React.SetStateAction<ShortRoomResponse[]>) => void;
+  rooms: FullRoomResponse[];
+  setRooms: (value: React.SetStateAction<FullRoomResponse[]>) => void;
 };
 
 const TalkioContext = createContext<TalkioContextProps | undefined>(undefined);
@@ -19,7 +19,7 @@ export const TalkioProvider: React.FC<{
 }> = ({ socketUrl, serverUrl, authToken, children }) => {
   const [socketClient, setTalkio] = useState<SocketClient | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
-  const [rooms, setRooms] = useState<ShortRoomResponse[]>([]);
+  const [rooms, setRooms] = useState<FullRoomResponse[]>([]);
 
   useEffect(() => {
     const client = new SocketClient(socketUrl, serverUrl, authToken);

@@ -1,13 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { SocketClient } from "./socket-client";
-import {
-  ConnectionStatus,
-  MessageResponse,
-  RoomDetails,
-  ShortRoomResponse,
-  UserMessageInput,
-} from "./types";
-import { connectTwoArrays } from "./utils";
+import { MessageResponse, RoomDetails, UserMessageInput } from "./types";
+import { connectTwoArrays } from "./utils/array";
 import { useTalkio } from "./talkio-provider";
 
 const INIT_ROOM_DETAILS: RoomDetails = {
